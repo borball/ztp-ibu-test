@@ -1,0 +1,96 @@
+---
+apiVersion: ran.openshift.io/v1
+kind: PolicyGenTemplate
+metadata:
+  name: "ibu-upgrade-policy"
+  namespace: "ztp-group-lb-du"
+spec:
+  bindingRules:
+    ibu: "upgrade"
+  mcp: "master"
+  sourceFiles:
+    - fileName: SecretGeneric.yaml
+      policyName: "ibu-upgrade"
+      metadata:
+        name: cloud-credentials
+        namespace: openshift-adp
+      data:
+        cloud: {{hub fromSecret "ztp-group-lb-du" "ibu-secret" "s3-cloud-credentials" hub}}
+    - fileName: SecretGeneric.yaml
+      policyName: "ibu-upgrade"
+      metadata:
+        name: seed-pull-secret
+        namespace: openshift-lifecycle-agent
+      data:
+        .dockerconfigjson: {{hub fromSecret "ztp-group-lb-du" "ibu-secret" "seed-pull-secret" hub}}
+    - fileName: OadpDataProtectionApplication.yaml
+      policyName: "ibu-upgrade"
+      spec:
+        backupLocations:
+          - velero:
+              default: true
+              provider: aws
+              credential:
+                name: cloud-credentials
+                key: cloud
+              objectStorage:
+                bucket: '{{hub fromConfigMap "ztp-group-lb-du" "ibu-config" "bucket-name" hub}}'
+                prefix: velero
+              config:
+                insecureSkipTLSVerify: "true"
+                profile: default
+                region: "localstorage"
+                s3ForcePathStyle: "true"
+                s3Url: '{{hub fromConfigMap "ztp-group-lb-du" "ibu-config" "bucket-endpoint" hub}}'
+    - fileName: ConfigMapGeneric.yaml
+      policyName: "ibu-upgrade"
+      metadata:
+        name: oadp-backup-restore-cm
+        namespace: openshift-adp
+      data: {{hub copyConfigMapData "ztp-group-lb-du" "oadp-backup-restore-cm" hub}}
+    - fileName: ImageBasedUpgrade.yaml
+      policyName: "prep-stage-policy"
+      spec:
+        stage: Prep
+        oadpContent:
+          - name: "oadp-backup-restore-cm"
+            namespace: "openshift-adp"
+        seedImageRef:
+          version: '{{hub fromConfigMap "ztp-group-lb-du" (printf "ztp-site-%s" .ManagedClusterName) "seed-version" hub}}'
+          image: '{{hub fromConfigMap "ztp-group-lb-du" (printf "ztp-site-%s" .ManagedClusterName) "seed-image" hub}}'
+      status:
+        conditions:
+          - reason: Completed
+            status: "True"
+            type: PrepCompleted
+            message: "Prep stage completed successfully"
+    - fileName: ImageBasedUpgrade.yaml
+      policyName: "upgrade-stage-policy"
+      spec:
+        stage: Upgrade
+      status:
+        conditions:
+          - reason: Completed
+            status: "True"
+            type: UpgradeCompleted
+    - fileName: ImageBasedUpgrade.yaml
+      policyName: "finalize-stage-policy"
+      complianceType: mustonlyhave
+      spec:
+        stage: Idle
+    - fileName: ImageBasedUpgrade.yaml
+      policyName: "finalize-stage-policy"
+      status:
+        conditions:
+          - reason: Idle
+            status: "True"
+            type: Idle
+    - fileName: ImageBasedUpgrade.yaml
+      policyName: "rollback-stage-policy"
+      spec:
+        stage: Rollback
+      status:
+        conditions:
+          - reason: Completed
+            status: "True"
+            type: RollbackCompleted

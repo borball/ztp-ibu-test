@@ -1,0 +1,23 @@
+---
+apiVersion: ran.openshift.io/v1
+kind: PolicyGenTemplate
+metadata:
+  name: "ibu-subs-policy"
+  namespace: "ztp-group-lb-du"
+spec:
+  bindingRules:
+    ibu: "subs"
+  mcp: "master"
+  sourceFiles:
+    - fileName: OadpSubscriptionNS.yaml
+      policyName: "subscription-policy"
+    - fileName: OadpSubscriptionOperGroup.yaml
+      policyName: "subscription-policy"
+    - fileName: OadpSubscription.yaml
+      policyName: "subscription-policy"
+    - fileName: LcaSubscriptionNS.yaml
+      policyName: "subscription-policy"
+    - fileName: LcaSubscriptionOperGroup.yaml
+      policyName: "subscription-policy"
+    - fileName: LcaSubscription.yaml
+      policyName: "subscription-policy"
